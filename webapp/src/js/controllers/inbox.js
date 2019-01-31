@@ -20,7 +20,6 @@ var feedback = require('../modules/feedback'),
     $transitions,
     $translate,
     $window,
-    Actions,
     APP_CONFIG,
     Auth,
     Changes,
@@ -74,9 +73,15 @@ var feedback = require('../modules/feedback'),
       $window.startupTimes.angularBootstrapped - $window.startupTimes.bootstrapped
     );
 
-    Session.init();
+    var ctrl = this;
+    var mapStateToTarget = function(state) {
+      return {
+        cancelCallback: state.cancelCallback
+      };
+    };
+    var unsubscribe = $ngRedux.connect(mapStateToTarget)(ctrl);
 
-    var actions = Actions($ngRedux.dispatch);
+    Session.init();
 
     if ($window.location.href.indexOf('localhost') !== -1) {
       Debug.set(Debug.get()); // Initialize with cookie
@@ -240,7 +245,7 @@ var feedback = require('../modules/feedback'),
 
     $scope.$on('HideContent', function() {
       $timeout(function() {
-        if ($scope.cancelCallback) {
+        if (ctrl.cancelCallback) {
           $scope.navigationCancel();
         } else {
           $scope.clearSelected();
@@ -250,11 +255,11 @@ var feedback = require('../modules/feedback'),
 
     $transitions.onStart({}, function(trans) {
       if (trans.to().name.indexOf('reports') === -1 || trans.to().name.indexOf('contacts') === -1 || trans.to().name.indexOf('tasks') === -1 || trans.to().name.indexOf('messages.detail') === -1) {
-        actions.unsetSelected();
+        $scope.unsetSelected();
       }
       if (trans.to().name.indexOf('tasks.detail') === -1) {
         Enketo.unload($scope.form);
-        actions.unsetSelected();
+        $scope.unsetSelected();
       }
       if (trans.to().name.split('.')[0] !== trans.from().name.split('.')[0]){
         $scope.clearSelection();
@@ -262,7 +267,7 @@ var feedback = require('../modules/feedback'),
       if (!$scope.enketoStatus.edited){
         return;
       }
-      if ($scope.cancelCallback){
+      if (ctrl.cancelCallback){
         event.preventDefault();
         $scope.navigationCancel();
       }
@@ -291,8 +296,8 @@ var feedback = require('../modules/feedback'),
       }
       if (!$scope.enketoStatus.edited) {
         // form hasn't been modified - return immediately
-        if ($scope.cancelCallback) {
-          $scope.cancelCallback();
+        if (ctrl.cancelCallback) {
+          ctrl.cancelCallback();
         }
         return;
       }
@@ -303,8 +308,8 @@ var feedback = require('../modules/feedback'),
         singleton: true,
       }).then(function() {
         $scope.enketoStatus.edited = false;
-        if ($scope.cancelCallback) {
-          $scope.cancelCallback();
+        if (ctrl.cancelCallback) {
+          ctrl.cancelCallback();
         }
       });
     };
@@ -352,14 +357,6 @@ var feedback = require('../modules/feedback'),
         return;
       }
       $scope.showContent = showContent;
-    };
-
-    $scope.clearCancelTarget = function() {
-      delete $scope.cancelCallback;
-    };
-
-    $scope.setCancelTarget = function(callback) {
-      $scope.cancelCallback = callback;
     };
 
     $scope.setTitle = function(title) {
@@ -801,6 +798,7 @@ var feedback = require('../modules/feedback'),
 
     RecurringProcessManager.startUpdateRelativeDate();
     $scope.$on('$destroy', function() {
+      unsubscribe();
       RecurringProcessManager.stopUpdateRelativeDate();
     });
 
